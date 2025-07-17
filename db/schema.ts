@@ -4,6 +4,8 @@ import {
   pgTable,
   text,
   timestamp,
+  jsonb,
+  bigint,
 } from "drizzle-orm/pg-core";
 
 // Better Auth Tables
@@ -82,4 +84,16 @@ export const subscription = pgTable("subscription", {
   metadata: text("metadata"), // JSON string
   customFieldData: text("customFieldData"), // JSON string
   userId: text("userId").references(() => user.id),
+});
+
+// EULA Analysis table
+export const analysis = pgTable("analysis", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  eulaText: text("eulaText").notNull(),
+  summary: text("summary").notNull(),
+  riskScore: integer("riskScore").notNull(),
+  riskReasons: jsonb("riskReasons").$type<string[]>().notNull().default([]),
+  userId: text("userId").references(() => user.id, { onDelete: "set null" }),
+  createdAt: bigint("createdAt", { mode: "number" }).notNull(),
+  updatedAt: bigint("updatedAt", { mode: "number" }),
 });
