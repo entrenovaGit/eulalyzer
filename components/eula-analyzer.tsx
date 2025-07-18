@@ -16,6 +16,99 @@ interface AnalysisResult {
   analysisId: string;
 }
 
+const extractTextFromPdfFallback = async (file: File): Promise<string> => {
+  try {
+    const pdfParse = await import('pdf-parse');
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    
+    console.log('Using pdf-parse fallback for PDF extraction');
+    const data = await pdfParse.default(buffer);
+    
+    console.log('PDF parsed successfully, pages:', data.numpages);
+    console.log('Extracted text length:', data.text.length);
+    
+    if (!data.text || data.text.trim().length === 0) {
+      throw new Error('No readable text found in PDF using fallback parser.');
+    }
+    
+    return data.text.trim();
+  } catch (error) {
+    console.error('PDF fallback extraction error:', error);
+    throw error;
+  }
+};
+
+const extractTextFromPdf = async (file: File): Promise<string> => {
+  try {
+    const pdfjsLib = await import('pdfjs-dist');
+    
+    // Disable worker entirely to avoid CDN and loading issues
+    pdfjsLib.GlobalWorkerOptions.workerSrc = '';
+    
+    const arrayBuffer = await file.arrayBuffer();
+    console.log('PDF file size:', file.size, 'bytes');
+    
+    // Create PDF document with minimal configuration (main thread)
+    const loadingTask = pdfjsLib.getDocument({
+      data: arrayBuffer,
+      disableWorker: true,
+      isEvalSupported: false,
+      disableAutoFetch: true,
+      disableStream: true,
+      disableRange: true,
+    });
+    
+    const pdf = await loadingTask.promise;
+    console.log('PDF loaded successfully with PDF.js, pages:', pdf.numPages);
+    
+    let fullText = '';
+    
+    // Extract text from each page
+    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+      try {
+        const page = await pdf.getPage(pageNum);
+        const textContent = await page.getTextContent();
+        
+        if (textContent.items && textContent.items.length > 0) {
+          const pageText = textContent.items
+            .filter((item: { str?: string }) => item.str && typeof item.str === 'string')
+            .map((item: { str: string }) => item.str.trim())
+            .filter((text: string) => text.length > 0)
+            .join(' ');
+          
+          if (pageText.trim()) {
+            fullText += pageText + '\n\n';
+          }
+        }
+      } catch (pageError) {
+        console.warn(`Error processing page ${pageNum}:`, pageError);
+        // Continue with other pages
+      }
+    }
+    
+    const result = fullText.trim();
+    console.log('Extracted text length:', result.length);
+    
+    if (!result) {
+      throw new Error('No readable text found in PDF. The PDF might be image-based or encrypted.');
+    }
+    
+    return result;
+    
+  } catch (error) {
+    console.error('PDF.js extraction failed, trying fallback...', error);
+    
+    // Try fallback parser
+    try {
+      return await extractTextFromPdfFallback(file);
+    } catch (fallbackError) {
+      console.error('Fallback PDF extraction also failed:', fallbackError);
+      throw new Error('PDF processing failed with both primary and fallback parsers. The PDF might be image-based, encrypted, or corrupted.');
+    }
+  }
+};
+
 export default function EulaAnalyzer() {
   const [eulaText, setEulaText] = useState("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -95,75 +188,6 @@ export default function EulaAnalyzer() {
     const result = await mammoth.extractRawText({ arrayBuffer });
     return result.value;
   };
-
-  const extractTextFromPdf = async (file: File): Promise<string> => {
-    try {
-      const pdfjsLib = await import('pdfjs-dist');
-      
-      // Use local worker file
-      if (typeof window !== 'undefined') {
-        pdfjsLib.GlobalWorkerOptions.workerSrc = '/js/pdf.worker.min.mjs';
-      }
-      
-      const arrayBuffer = await file.arrayBuffer();
-      console.log('PDF file size:', file.size, 'bytes');
-      
-      // Create PDF document with reliable configuration
-      const loadingTask = pdfjsLib.getDocument({
-        data: arrayBuffer,
-        disableAutoFetch: false,
-        disableStream: false,
-        disableRange: false,
-        useSystemFonts: true,
-      });
-      
-      const pdf = await loadingTask.promise;
-      console.log('PDF loaded successfully, pages:', pdf.numPages);
-      
-      let fullText = '';
-      
-      // Extract text from each page
-      for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-        try {
-          const page = await pdf.getPage(pageNum);
-          const textContent = await page.getTextContent();
-          
-          if (textContent.items && textContent.items.length > 0) {
-            const pageText = textContent.items
-              .filter((item: { str?: string }) => item.str && typeof item.str === 'string')
-              .map((item: { str: string }) => item.str.trim())
-              .filter((text: string) => text.length > 0)
-              .join(' ');
-            
-            if (pageText.trim()) {
-              fullText += pageText + '\n\n';
-            }
-          }
-        } catch (pageError) {
-          console.warn(`Error processing page ${pageNum}:`, pageError);
-          // Continue with other pages
-        }
-      }
-      
-      const result = fullText.trim();
-      console.log('Extracted text length:', result.length);
-      
-      if (!result) {
-        throw new Error('No readable text found in PDF. The PDF might be image-based or encrypted.');
-      }
-      
-      return result;
-      
-    } catch (error) {
-      console.error('PDF extraction error:', error);
-      if (error instanceof Error) {
-        throw new Error(`PDF processing failed: ${error.message}`);
-      } else {
-        throw new Error('PDF processing failed: Unknown error');
-      }
-    }
-  };
-
 
   const handleFileSelect = useCallback(async (file: File) => {
     const allowedTypes = [
