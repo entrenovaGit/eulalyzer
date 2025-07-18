@@ -100,21 +100,21 @@ export default function EulaAnalyzer() {
     try {
       const pdfjsLib = await import('pdfjs-dist');
       
-      // Set the worker source - use absolute URL
+      // Use local worker file
       if (typeof window !== 'undefined') {
-        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+        pdfjsLib.GlobalWorkerOptions.workerSrc = '/js/pdf.worker.min.mjs';
       }
       
       const arrayBuffer = await file.arrayBuffer();
       console.log('PDF file size:', file.size, 'bytes');
       
-      // Create PDF document with better error handling
+      // Create PDF document with reliable configuration
       const loadingTask = pdfjsLib.getDocument({
         data: arrayBuffer,
+        disableAutoFetch: false,
+        disableStream: false,
+        disableRange: false,
         useSystemFonts: true,
-        disableFontFace: false,
-        cMapUrl: `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/cmaps/`,
-        cMapPacked: true,
       });
       
       const pdf = await loadingTask.promise;
