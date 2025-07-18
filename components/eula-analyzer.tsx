@@ -97,27 +97,71 @@ export default function EulaAnalyzer() {
   };
 
   const extractTextFromPdf = async (file: File): Promise<string> => {
-    const pdfjsLib = await import('pdfjs-dist');
-    
-    // Set the worker source
-    pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
-    
-    const arrayBuffer = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
-    
-    let fullText = '';
-    
-    // Extract text from each page
-    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-      const page = await pdf.getPage(pageNum);
-      const textContent = await page.getTextContent();
-      const pageText = textContent.items
-        .map((item: { str: string }) => item.str)
-        .join(' ');
-      fullText += pageText + '\n';
+    try {
+      const pdfjsLib = await import('pdfjs-dist');
+      
+      // Set the worker source - use absolute URL
+      if (typeof window !== 'undefined') {
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+      }
+      
+      const arrayBuffer = await file.arrayBuffer();
+      console.log('PDF file size:', file.size, 'bytes');
+      
+      // Create PDF document with better error handling
+      const loadingTask = pdfjsLib.getDocument({
+        data: arrayBuffer,
+        useSystemFonts: true,
+        disableFontFace: false,
+        cMapUrl: `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/cmaps/`,
+        cMapPacked: true,
+      });
+      
+      const pdf = await loadingTask.promise;
+      console.log('PDF loaded successfully, pages:', pdf.numPages);
+      
+      let fullText = '';
+      
+      // Extract text from each page
+      for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+        try {
+          const page = await pdf.getPage(pageNum);
+          const textContent = await page.getTextContent();
+          
+          if (textContent.items && textContent.items.length > 0) {
+            const pageText = textContent.items
+              .filter((item: { str?: string }) => item.str && typeof item.str === 'string')
+              .map((item: { str: string }) => item.str.trim())
+              .filter((text: string) => text.length > 0)
+              .join(' ');
+            
+            if (pageText.trim()) {
+              fullText += pageText + '\n\n';
+            }
+          }
+        } catch (pageError) {
+          console.warn(`Error processing page ${pageNum}:`, pageError);
+          // Continue with other pages
+        }
+      }
+      
+      const result = fullText.trim();
+      console.log('Extracted text length:', result.length);
+      
+      if (!result) {
+        throw new Error('No readable text found in PDF. The PDF might be image-based or encrypted.');
+      }
+      
+      return result;
+      
+    } catch (error) {
+      console.error('PDF extraction error:', error);
+      if (error instanceof Error) {
+        throw new Error(`PDF processing failed: ${error.message}`);
+      } else {
+        throw new Error('PDF processing failed: Unknown error');
+      }
     }
-    
-    return fullText.trim();
   };
 
 
@@ -178,7 +222,11 @@ export default function EulaAnalyzer() {
       toast.success(`File "${file.name}" loaded successfully`);
     } catch (error) {
       console.error("File processing error:", error);
-      toast.error("Failed to read file content. Please ensure the file is not corrupted or password-protected.");
+      if (error instanceof Error) {
+        toast.error(error.message);
+      } else {
+        toast.error("Failed to read file content. Please ensure the file is not corrupted or password-protected.");
+      }
     }
   }, []);
 
