@@ -44,10 +44,6 @@ export async function POST(request: NextRequest) {
     console.log('Processing PDF file:', file.name, 'Size:', file.size, 'bytes');
 
     try {
-      // Try to parse PDF with more explicit error handling
-      const pdfParse = await import('pdf-parse');
-      
-      console.log('PDF-parse library imported successfully');
       console.log('Buffer size:', buffer.length);
       
       // Test if buffer is valid
@@ -63,49 +59,70 @@ export async function POST(request: NextRequest) {
         throw new Error('Invalid PDF file format - missing PDF header');
       }
       
-      console.log('Starting PDF parsing with pdf-parse...');
+      console.log('Trying pdf2text library...');
       
-      // Parse PDF with minimal options
-      const data = await pdfParse.default(buffer);
-      
-      console.log('PDF parsed successfully!');
-      console.log('Pages:', data.numpages);
-      console.log('Text length:', data.text?.length || 0);
-      console.log('First 100 chars:', data.text?.substring(0, 100) || 'No text');
+      try {
+        // Try pdf2text first (simpler library)
+        const pdf2text = await import('pdf2text');
+        console.log('pdf2text imported successfully');
+        
+        const text = await pdf2text.default(buffer);
+        
+        console.log('PDF parsed successfully with pdf2text!');
+        console.log('Text length:', text?.length || 0);
+        console.log('First 100 chars:', text?.substring(0, 100) || 'No text');
 
-      if (!data.text || data.text.trim().length === 0) {
-        return NextResponse.json(
-          { error: 'No readable text found in PDF. The PDF might be image-based, scanned, or encrypted.' },
-          { status: 400 }
-        );
+        if (!text || text.trim().length === 0) {
+          throw new Error('No text extracted from PDF');
+        }
+
+        // Clean up the extracted text
+        const cleanedText = text
+          .replace(/\s+/g, ' ') // Replace multiple spaces with single space
+          .replace(/\n\s*\n/g, '\n') // Remove empty lines
+          .trim();
+
+        return NextResponse.json({
+          text: cleanedText,
+          pages: 'unknown', // pdf2text doesn't provide page count
+          info: { method: 'pdf2text' }
+        });
+        
+      } catch (pdf2textError) {
+        console.log('pdf2text failed, trying manual PDF parsing...');
+        console.error('pdf2text error:', pdf2textError);
+        
+        // Fallback: Try to extract basic text manually
+        // This is a very basic fallback that looks for readable text in the PDF
+        const bufferStr = buffer.toString('latin1');
+        
+        // Look for text content in PDF (very basic approach)
+        const textMatches = bufferStr.match(/\(([^)]+)\)/g);
+        
+        if (textMatches && textMatches.length > 0) {
+          const extractedText = textMatches
+            .map(match => match.slice(1, -1)) // Remove parentheses
+            .filter(text => text.length > 3) // Filter out very short strings
+            .join(' ');
+          
+          if (extractedText.trim().length > 50) {
+            console.log('Basic text extraction successful');
+            console.log('Extracted text length:', extractedText.length);
+            
+            return NextResponse.json({
+              text: extractedText.trim(),
+              pages: 'unknown',
+              info: { method: 'basic-extraction' }
+            });
+          }
+        }
+        
+        throw new Error('All PDF parsing methods failed');
       }
-
-      // Clean up the extracted text
-      const cleanedText = data.text
-        .replace(/\s+/g, ' ') // Replace multiple spaces with single space
-        .replace(/\n\s*\n/g, '\n') // Remove empty lines
-        .trim();
-
-      return NextResponse.json({
-        text: cleanedText,
-        pages: data.numpages,
-        info: data.info
-      });
       
     } catch (pdfError) {
       console.error('PDF parsing specific error:', pdfError);
-      
-      // More specific error for PDF parsing
-      if (pdfError instanceof Error) {
-        if (pdfError.message.includes('ENOENT')) {
-          return NextResponse.json(
-            { error: 'PDF parsing failed due to library configuration issue. The PDF might be corrupted or in an unsupported format.' },
-            { status: 500 }
-          );
-        }
-        throw pdfError; // Re-throw to be caught by outer catch
-      }
-      throw new Error('Unknown PDF parsing error');
+      throw pdfError; // Re-throw to be caught by outer catch
     }
 
   } catch (error) {
