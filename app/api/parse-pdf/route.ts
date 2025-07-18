@@ -9,7 +9,7 @@ async function extractTextFromPDF(buffer: Buffer): Promise<string> {
     const pages = await reader.read(buffer);
     
     let extractedText = '';
-    for (let page of pages) {
+    for (const page of pages) {
       extractedText += page + '\n';
     }
     

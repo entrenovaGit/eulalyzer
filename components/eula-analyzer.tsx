@@ -16,38 +16,39 @@ interface AnalysisResult {
   analysisId: string;
 }
 
-const extractTextFromPdf = async (file: File): Promise<string> => {
-  try {
-    console.log('PDF file size:', file.size, 'bytes');
-    console.log('Sending PDF to server for parsing...');
-    
-    const formData = new FormData();
-    formData.append('file', file);
-    
-    const response = await fetch('/api/parse-pdf', {
-      method: 'POST',
-      body: formData,
-    });
-    
-    const data = await response.json();
-    
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to parse PDF');
-    }
-    
-    console.log('PDF parsed successfully on server, pages:', data.pages);
-    console.log('Extracted text length:', data.text.length);
-    
-    return data.text;
-  } catch (error) {
-    console.error('PDF extraction error:', error);
-    if (error instanceof Error) {
-      throw new Error(`PDF processing failed: ${error.message}`);
-    } else {
-      throw new Error('PDF processing failed: Unknown error. The PDF might be corrupted, password-protected, or contain only images.');
-    }
-  }
-};
+// PDF extraction function (currently disabled)
+// const extractTextFromPdf = async (file: File): Promise<string> => {
+//   try {
+//     console.log('PDF file size:', file.size, 'bytes');
+//     console.log('Sending PDF to server for parsing...');
+//     
+//     const formData = new FormData();
+//     formData.append('file', file);
+//     
+//     const response = await fetch('/api/parse-pdf', {
+//       method: 'POST',
+//       body: formData,
+//     });
+//     
+//     const data = await response.json();
+//     
+//     if (!response.ok) {
+//       throw new Error(data.error || 'Failed to parse PDF');
+//     }
+//     
+//     console.log('PDF parsed successfully on server, pages:', data.pages);
+//     console.log('Extracted text length:', data.text.length);
+//     
+//     return data.text;
+//   } catch (error) {
+//     console.error('PDF extraction error:', error);
+//     if (error instanceof Error) {
+//       throw new Error(`PDF processing failed: ${error.message}`);
+//     } else {
+//       throw new Error('PDF processing failed: Unknown error. The PDF might be corrupted, password-protected, or contain only images.');
+//     }
+//   }
+// };
 
 export default function EulaAnalyzer() {
   const [eulaText, setEulaText] = useState("");
