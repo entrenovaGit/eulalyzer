@@ -7,10 +7,45 @@ interface EulaAnalysisRequest {
 }
 
 const EulaAnalysisSchema = z.object({
-  summary: z.string().describe('Brief summary of legal risks in plain English (2-3 sentences)'),
+  summary: z.string().describe('Brief summary of legal risks in plain English (2-3 sentences), starting with the vendor/company name if identifiable'),
   riskScore: z.number().min(1).max(100).describe('Risk score from 1-100 (1=minimal risk, 100=high risk)'),
-  riskReasons: z.array(z.string()).describe('Specific reasons for the risk score')
+  riskReasons: z.array(z.string()).describe('Specific reasons for the risk score'),
+  vendorName: z.string().optional().describe('Name of the company/vendor from the EULA, if identifiable')
 });
+
+// Extract vendor name from EULA text
+function extractVendorName(eulaText: string): string | undefined {
+  const text = eulaText;
+  
+  // Common patterns for company names in EULAs
+  const patterns = [
+    /(?:this agreement is between you and|by and between you and|between you and)\s+([A-Z][A-Za-z\s&.,]+?)(?:\s+\(|,|\s+and|\s+located)/i,
+    /(?:^|\n)\s*([A-Z][A-Za-z\s&.,]+?)\s+(?:End User License Agreement|EULA|Terms of Service|Privacy Policy)/i,
+    /©\s*(?:\d{4})?\s*([A-Z][A-Za-z\s&.,]+?)(?:\.|,|\s+All rights|\s+Inc|\s+LLC|\s+Ltd)/i,
+    /(?:Company|Service Provider|Provider)["']?\s*means\s+([A-Z][A-Za-z\s&.,]+?)(?:\s*\(|,|\.)/i,
+    /([A-Z][A-Za-z\s&.,]+?)(?:\s+Inc\.?|\s+LLC\.?|\s+Ltd\.?|\s+Corporation|\s+Corp\.?)/i
+  ];
+  
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match && match[1]) {
+      const name = match[1].trim()
+        .replace(/\s+/g, ' ')
+        .replace(/[,.]$/, ''); // Remove trailing punctuation
+      
+      // Filter out generic terms
+      if (name.length > 2 && 
+          !name.toLowerCase().includes('user') && 
+          !name.toLowerCase().includes('customer') &&
+          !name.toLowerCase().includes('party') &&
+          name.length < 50) {
+        return name;
+      }
+    }
+  }
+  
+  return undefined;
+}
 
 // Enhanced fallback analysis using granular scoring framework
 function generateFallbackAnalysis(eulaText: string) {
@@ -18,6 +53,7 @@ function generateFallbackAnalysis(eulaText: string) {
   let riskScore = 0;
   const riskReasons: string[] = [];
   const riskDetails: string[] = [];
+  const vendorName = extractVendorName(eulaText);
 
   // 1. TERMS MODIFICATION (25 points)
   if (text.includes('change') && text.includes('at any time') && text.includes('without notice')) {
@@ -115,18 +151,20 @@ function generateFallbackAnalysis(eulaText: string) {
   riskScore = Math.min(riskScore, 100);
 
   let summary: string;
+  const vendorPrefix = vendorName ? `${vendorName}'s EULA` : "This EULA";
+  
   if (riskScore >= 86) {
-    summary = "This EULA contains extremely unfavorable terms that pose significant risks to users. Strongly recommend legal review before accepting.";
+    summary = `${vendorPrefix} contains extremely unfavorable terms that pose significant risks to users. Strongly recommend legal review before accepting.`;
   } else if (riskScore >= 71) {
-    summary = "This EULA heavily favors the company with multiple high-risk clauses. Careful consideration and legal review recommended.";
+    summary = `${vendorPrefix} heavily favors the company with multiple high-risk clauses. Careful consideration and legal review recommended.`;
   } else if (riskScore >= 51) {
-    summary = "This EULA contains several concerning terms that may impact user rights. Review key sections before accepting.";
+    summary = `${vendorPrefix} contains several concerning terms that may impact user rights. Review key sections before accepting.`;
   } else if (riskScore >= 36) {
-    summary = "This EULA has some notable clauses but appears within reasonable industry standards. Minor concerns identified.";
+    summary = `${vendorPrefix} has some notable clauses but appears within reasonable industry standards. Minor concerns identified.`;
   } else if (riskScore >= 21) {
-    summary = "This EULA shows good balance between company and user interests with only minor risk factors.";
+    summary = `${vendorPrefix} shows good balance between company and user interests with only minor risk factors.`;
   } else {
-    summary = "This EULA demonstrates excellent user protections with minimal risk factors identified.";
+    summary = `${vendorPrefix} demonstrates excellent user protections with minimal risk factors identified.`;
   }
 
   // Add risk scoring breakdown to reasons if detailed
@@ -138,6 +176,7 @@ function generateFallbackAnalysis(eulaText: string) {
     summary,
     riskScore,
     riskReasons,
+    vendorName,
     analysisId: `enhanced_fallback_${Date.now()}`
   };
 }
@@ -157,14 +196,18 @@ export async function POST(req: Request) {
     // Check if OpenAI API key is available
     if (!process.env.OPENAI_API_KEY) {
       // Fallback to mock response if no API key
+      const mockVendorName = extractVendorName(eulaText);
+      const mockSummaryPrefix = mockVendorName ? `${mockVendorName}'s EULA` : "This EULA";
+      
       const mockAnalysis = {
-        summary: "This EULA contains several concerning clauses including broad data collection rights and limited liability protections for users. The agreement grants the company extensive permissions while providing minimal recourse for users.",
+        summary: `${mockSummaryPrefix} contains several concerning clauses including broad data collection rights and limited liability protections for users. The agreement grants the company extensive permissions while providing minimal recourse for users.`,
         riskScore: 75,
         riskReasons: [
           "Broad data collection and sharing permissions",
           "Limited liability protections for the company", 
           "Vague termination clauses that favor the provider"
         ],
+        vendorName: mockVendorName,
         analysisId: `mock_${Date.now()}`
       };
       return Response.json(mockAnalysis);
@@ -178,9 +221,10 @@ export async function POST(req: Request) {
         prompt: `You are an expert legal AI specializing in software End User License Agreements (EULAs). Perform a comprehensive risk assessment using the framework below.
 
 IMPORTANT: You must respond with valid JSON that matches the schema exactly:
-- summary: A 2-3 sentence summary in plain English
+- summary: A 2-3 sentence summary in plain English, starting with the vendor/company name if identifiable
 - riskScore: A precise number between 1-100 based on detailed analysis
 - riskReasons: An array of 3-7 specific, actionable reason strings
+- vendorName: The company/vendor name from the EULA if identifiable, or null if not found
 
 ## GRANULAR RISK SCORING FRAMEWORK (Total: 100 points):
 
@@ -231,11 +275,13 @@ IMPORTANT: You must respond with valid JSON that matches the schema exactly:
 - 86-100: EXTREME - Dangerous for users
 
 ## ANALYSIS REQUIREMENTS:
-1. Calculate precise risk score using the framework above
-2. Identify specific clause types and their point contributions
-3. Provide actionable insights about key risks
-4. Consider cumulative effect of multiple concerning clauses
-5. Note any particularly unusual or aggressive terms
+1. FIRST: Identify the company/vendor name from the EULA text
+2. Calculate precise risk score using the framework above
+3. Start summary with the vendor name if found (e.g., "Microsoft's EULA..." or "Adobe's EULA...")
+4. Identify specific clause types and their point contributions
+5. Provide actionable insights about key risks
+6. Consider cumulative effect of multiple concerning clauses
+7. Note any particularly unusual or aggressive terms
 
 EULA Content:
 ${eulaText.slice(0, 4000)}`, // Limit text to avoid token limits

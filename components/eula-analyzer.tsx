@@ -13,6 +13,7 @@ interface AnalysisResult {
   summary: string;
   riskScore: number;
   riskReasons: string[];
+  vendorName?: string;
   analysisId: string;
 }
 
@@ -450,7 +451,9 @@ export default function EulaAnalyzer() {
                   <CardContent>
                     <div className="space-y-3">
                       <div className="flex items-center justify-between">
-                        <span className="font-medium text-white">Risk Score</span>
+                        <span className="font-medium text-white">
+                          {result.vendorName ? `Risk Score for ${result.vendorName}` : "Risk Score"}
+                        </span>
                         <div className="flex items-center gap-2">
                           <Badge 
                             className={`${getRiskLevel(result.riskScore).color} text-white text-sm`}
