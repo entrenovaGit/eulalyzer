@@ -191,25 +191,25 @@ export default function EulaAnalyzer() {
   };
 
   return (
-    <section className="min-h-screen bg-gray-950 text-white px-6 py-8">
-      <div className="max-w-7xl mx-auto h-screen flex flex-col">
+    <section className="min-h-screen bg-gray-950 text-white px-4 sm:px-6 py-4 sm:py-8">
+      <div className="max-w-7xl mx-auto flex flex-col">
         {/* Header */}
-        <div className="text-center mb-6">
-          <h2 className="text-3xl font-bold mb-2 bg-gradient-to-r from-purple-400 to-purple-600 bg-clip-text text-transparent">
+        <div className="text-center mb-4 sm:mb-6">
+          <h2 className="text-2xl sm:text-3xl font-bold mb-2 bg-gradient-to-r from-purple-400 to-purple-600 bg-clip-text text-transparent">
             EULAlyzer AI
           </h2>
-          <p className="text-gray-400">
+          <p className="text-gray-400 text-sm sm:text-base">
             AI-powered risk assessment for End User License Agreements
           </p>
         </div>
 
         {/* Main Content - 2 Columns */}
-        <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-6 min-h-0">
+        <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
           {/* Left Column - Input */}
-          <div className="flex flex-col min-h-0">
+          <div className="flex flex-col min-h-0 lg:min-h-[600px]">
             <Card className="bg-gray-900 border-purple-800/30 flex-1 flex flex-col">
               <CardHeader className="pb-4">
-                <div className="flex justify-between items-start mb-4">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4 sm:gap-0 mb-4">
                   <div>
                     <CardTitle className="flex items-center gap-2 text-purple-300">
                       <FileText className="h-5 w-5" />
@@ -219,13 +219,13 @@ export default function EulaAnalyzer() {
                       Upload a file or paste your EULA text
                     </CardDescription>
                   </div>
-                  <div className="space-x-2">
+                  <div className="flex gap-2 flex-wrap">
                     {result && (
                       <Button 
                         variant="outline" 
                         onClick={clearAnalysis}
                         size="sm"
-                        className="bg-yellow-500 hover:bg-yellow-400 text-black border-yellow-500"
+                        className="bg-yellow-500 hover:bg-yellow-400 text-black border-yellow-500 flex-shrink-0"
                       >
                         Clear
                       </Button>
@@ -234,7 +234,7 @@ export default function EulaAnalyzer() {
                       onClick={analyzeEula} 
                       disabled={isAnalyzing || !eulaText.trim()}
                       size="sm"
-                      className="bg-green-600 hover:bg-green-700 text-white min-w-[100px]"
+                      className="bg-green-600 hover:bg-green-700 text-white min-w-[100px] flex-shrink-0"
                     >
                       {isAnalyzing ? (
                         <>
@@ -250,7 +250,7 @@ export default function EulaAnalyzer() {
               </CardHeader>
               <CardContent className="flex-1 flex flex-col">
                 {/* Mode Toggle */}
-                <div className="flex justify-between items-center mb-4">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 sm:gap-0 mb-4">
                   <div className="flex gap-2">
                     <Button
                       variant={inputMode === "text" ? "default" : "outline"}
@@ -262,7 +262,8 @@ export default function EulaAnalyzer() {
                       className={inputMode === "text" ? "bg-purple-600 hover:bg-purple-700" : "border-purple-600/50 text-purple-300 hover:bg-purple-600/20"}
                     >
                       <FileText className="h-4 w-4 mr-2" />
-                      Paste Text
+                      <span className="hidden sm:inline">Paste Text</span>
+                      <span className="sm:hidden">Text</span>
                     </Button>
                     <Button
                       variant={inputMode === "file" ? "default" : "outline"}
@@ -271,10 +272,11 @@ export default function EulaAnalyzer() {
                       className={inputMode === "file" ? "bg-purple-600 hover:bg-purple-700" : "border-purple-600/50 text-purple-300 hover:bg-purple-600/20"}
                     >
                       <Upload className="h-4 w-4 mr-2" />
-                      Upload File
+                      <span className="hidden sm:inline">Upload File</span>
+                      <span className="sm:hidden">File</span>
                     </Button>
                   </div>
-                  <span className="text-xs text-gray-400">
+                  <span className="text-xs text-gray-400 text-center sm:text-right">
                     {eulaText.length.toLocaleString()} / 50,000 characters
                   </span>
                 </div>
@@ -285,7 +287,7 @@ export default function EulaAnalyzer() {
                     <div className="flex-1 space-y-3 flex flex-col min-h-0">
                       {/* File Upload Area */}
                       <div
-                        className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors flex-shrink-0 ${
+                        className={`border-2 border-dashed rounded-lg p-4 sm:p-6 text-center transition-colors flex-shrink-0 touch-manipulation ${
                           isDragOver
                             ? "border-purple-500 bg-purple-500/10"
                             : "border-purple-600/30 hover:border-purple-500/50 bg-gray-800/50"
@@ -316,19 +318,23 @@ export default function EulaAnalyzer() {
                           <div className="space-y-2">
                             <Upload className="h-6 w-6 mx-auto text-purple-400" />
                             <div>
-                              <p className="font-medium text-sm text-white">Drop EULA file here</p>
+                              <p className="font-medium text-sm text-white">
+                                <span className="hidden sm:inline">Drop EULA file here</span>
+                                <span className="sm:hidden">Upload EULA file</span>
+                              </p>
                               <p className="text-xs text-gray-400">
-                                or{" "}
+                                <span className="hidden sm:inline">or </span>
                                 <button
                                   type="button"
-                                  className="text-purple-400 hover:text-purple-300 hover:underline"
+                                  className="text-purple-400 hover:text-purple-300 hover:underline touch-manipulation"
                                   onClick={() => fileInputRef.current?.click()}
                                 >
-                                  browse files
+                                  <span className="hidden sm:inline">browse files</span>
+                                  <span className="sm:hidden">Tap to select file</span>
                                 </button>
                               </p>
                             </div>
-                            <p className="text-xs text-gray-500">
+                            <p className="text-xs text-gray-500 px-2">
                               Supports .txt, .html, .docx files up to 25MB
                             </p>
                           </div>
@@ -351,9 +357,8 @@ export default function EulaAnalyzer() {
                           <textarea
                             value={eulaText}
                             onChange={(e) => setEulaText(e.target.value)}
-                            className="flex-1 w-full min-h-0 text-xs bg-gray-800 border border-purple-600/30 text-white resize-none rounded-md p-3 overflow-y-auto focus:outline-none focus:ring-2 focus:ring-purple-500"
+                            className="flex-1 w-full text-xs bg-gray-800 border border-purple-600/30 text-white resize-none rounded-md p-3 overflow-y-auto focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[300px] lg:min-h-[400px]"
                             disabled={isAnalyzing}
-                            style={{ height: '400px', minHeight: '400px' }}
                           />
                         </div>
                       )}
@@ -363,9 +368,8 @@ export default function EulaAnalyzer() {
                       placeholder="Paste your EULA text here..."
                       value={eulaText}
                       onChange={(e) => setEulaText(e.target.value)}
-                      className="flex-1 w-full min-h-0 bg-gray-800 border border-purple-600/30 text-white resize-none rounded-md p-3 overflow-y-auto focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      className="flex-1 w-full bg-gray-800 border border-purple-600/30 text-white resize-none rounded-md p-3 overflow-y-auto focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[400px] lg:min-h-[500px]"
                       disabled={isAnalyzing}
-                      style={{ height: '500px', minHeight: '500px' }}
                     />
                   )}
                 </div>
@@ -374,14 +378,14 @@ export default function EulaAnalyzer() {
           </div>
 
           {/* Right Column - Results */}
-          <div className="flex flex-col min-h-0">
+          <div className="flex flex-col min-h-0 lg:min-h-[600px] mt-6 lg:mt-0">
             {error ? (
               <Alert variant="destructive" className="bg-red-900/50 border-red-600/50">
                 <AlertTriangle className="h-4 w-4" />
                 <AlertDescription className="text-red-200">{error}</AlertDescription>
               </Alert>
             ) : result ? (
-              <div className="flex-1 space-y-4 overflow-y-auto">
+              <div className="flex-1 space-y-4 overflow-y-auto max-h-[70vh] lg:max-h-none">
                 {/* Risk Score */}
                 <Card className="bg-gray-900 border-purple-800/30">
                   <CardHeader className="pb-3">

@@ -102,10 +102,19 @@
     * {
         @apply border-border outline-ring/50;
     }
+    html {
+        /* Prevent horizontal scrolling on mobile */
+        overflow-x: hidden;
+    }
     body {
         @apply bg-background text-foreground font-sans;
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
+        /* Prevent horizontal scrolling on mobile */
+        overflow-x: hidden;
+        /* Fix mobile viewport height issues */
+        min-height: 100vh;
+        min-height: 100dvh;
     }
     button,
     input,
@@ -115,6 +124,22 @@
     }
     button {
         @apply hover:cursor-pointer;
+        /* Improve touch targets on mobile */
+        min-height: 44px;
+        min-width: 44px;
+        touch-action: manipulation;
+    }
+    /* Mobile-specific improvements */
+    textarea {
+        /* Enable momentum scrolling on iOS */
+        -webkit-overflow-scrolling: touch;
+        /* Prevent zoom on focus on iOS */
+        font-size: 16px;
+    }
+    /* Fix mobile viewport units */
+    .min-h-screen {
+        min-height: 100vh;
+        min-height: 100dvh;
     }
     h1,
     h2,
