@@ -43,36 +43,73 @@ export async function POST(request: NextRequest) {
 
     console.log('Processing PDF file:', file.name, 'Size:', file.size, 'bytes');
 
-    // Dynamically import pdf-parse to avoid loading issues
-    const pdfParse = await import('pdf-parse');
-    
-    // Parse PDF
-    const data = await pdfParse.default(buffer);
+    try {
+      // Try to parse PDF with more explicit error handling
+      const pdfParse = await import('pdf-parse');
+      
+      console.log('PDF-parse library imported successfully');
+      console.log('Buffer size:', buffer.length);
+      
+      // Test if buffer is valid
+      if (buffer.length === 0) {
+        throw new Error('Empty PDF buffer');
+      }
+      
+      // Check PDF header
+      const header = buffer.subarray(0, 4).toString();
+      console.log('PDF header:', header);
+      
+      if (!header.startsWith('%PDF')) {
+        throw new Error('Invalid PDF file format - missing PDF header');
+      }
+      
+      console.log('Starting PDF parsing with pdf-parse...');
+      
+      // Parse PDF with minimal options
+      const data = await pdfParse.default(buffer);
+      
+      console.log('PDF parsed successfully!');
+      console.log('Pages:', data.numpages);
+      console.log('Text length:', data.text?.length || 0);
+      console.log('First 100 chars:', data.text?.substring(0, 100) || 'No text');
 
-    console.log('PDF parsed successfully, pages:', data.numpages);
-    console.log('Extracted text length:', data.text.length);
+      if (!data.text || data.text.trim().length === 0) {
+        return NextResponse.json(
+          { error: 'No readable text found in PDF. The PDF might be image-based, scanned, or encrypted.' },
+          { status: 400 }
+        );
+      }
 
-    if (!data.text || data.text.trim().length === 0) {
-      return NextResponse.json(
-        { error: 'No readable text found in PDF. The PDF might be image-based, scanned, or encrypted.' },
-        { status: 400 }
-      );
+      // Clean up the extracted text
+      const cleanedText = data.text
+        .replace(/\s+/g, ' ') // Replace multiple spaces with single space
+        .replace(/\n\s*\n/g, '\n') // Remove empty lines
+        .trim();
+
+      return NextResponse.json({
+        text: cleanedText,
+        pages: data.numpages,
+        info: data.info
+      });
+      
+    } catch (pdfError) {
+      console.error('PDF parsing specific error:', pdfError);
+      
+      // More specific error for PDF parsing
+      if (pdfError instanceof Error) {
+        if (pdfError.message.includes('ENOENT')) {
+          return NextResponse.json(
+            { error: 'PDF parsing failed due to library configuration issue. The PDF might be corrupted or in an unsupported format.' },
+            { status: 500 }
+          );
+        }
+        throw pdfError; // Re-throw to be caught by outer catch
+      }
+      throw new Error('Unknown PDF parsing error');
     }
 
-    // Clean up the extracted text
-    const cleanedText = data.text
-      .replace(/\s+/g, ' ') // Replace multiple spaces with single space
-      .replace(/\n\s*\n/g, '\n') // Remove empty lines
-      .trim();
-
-    return NextResponse.json({
-      text: cleanedText,
-      pages: data.numpages,
-      info: data.info
-    });
-
   } catch (error) {
-    console.error('PDF parsing error:', error);
+    console.error('General PDF processing error:', error);
     
     if (error instanceof Error) {
       return NextResponse.json(
