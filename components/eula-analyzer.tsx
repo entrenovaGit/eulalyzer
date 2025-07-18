@@ -134,18 +134,22 @@ export default function EulaAnalyzer() {
       'text/plain',
       'text/html',
       'application/msword',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'application/pdf'
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
     ];
 
     const fileName = file.name.toLowerCase();
     const isAllowedType = allowedTypes.includes(file.type) || 
                          fileName.endsWith('.txt') || 
-                         fileName.endsWith('.docx') ||
-                         fileName.endsWith('.pdf');
+                         fileName.endsWith('.docx');
+
+    // Temporarily disable PDF support due to parsing issues
+    if (fileName.endsWith('.pdf') || file.type === 'application/pdf') {
+      toast.error("PDF support is temporarily disabled. Please convert your PDF to a Word document (.docx) or copy the text manually.");
+      return;
+    }
 
     if (!isAllowedType) {
-      toast.error("Please upload a supported file (.txt, .html, .docx, .pdf)");
+      toast.error("Please upload a supported file (.txt, .html, .docx)");
       return;
     }
 
@@ -163,8 +167,7 @@ export default function EulaAnalyzer() {
         content = await readFileContent(file);
       } else if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || fileName.endsWith('.docx')) {
         content = await extractTextFromDocx(file);
-      } else if (file.type === 'application/pdf' || fileName.endsWith('.pdf')) {
-        content = await extractTextFromPdf(file);
+      // PDF support temporarily disabled
       } else if (file.type === 'application/msword') {
         toast.error("Legacy .doc files are not supported. Please save as .docx format.");
         return;
@@ -175,9 +178,18 @@ export default function EulaAnalyzer() {
         return;
       }
 
-      if (content.length > 50000) {
-        toast.error("File content is too long (max 50,000 characters)");
-        return;
+      // Allow longer content for PDFs since they often contain more text
+      const maxLength = fileName.endsWith('.pdf') ? 100000 : 50000;
+      if (content.length > maxLength) {
+        // For PDFs, truncate to fit within limit and show a warning
+        if (fileName.endsWith('.pdf')) {
+          const originalLength = content.length;
+          content = content.substring(0, 50000);
+          toast.warning(`PDF content was truncated to 50,000 characters (original: ${originalLength.toLocaleString()} chars)`);
+        } else {
+          toast.error("File content is too long (max 50,000 characters)");
+          return;
+        }
       }
 
       setUploadedFile(file);
@@ -375,7 +387,7 @@ export default function EulaAnalyzer() {
                               </p>
                             </div>
                             <p className="text-xs text-gray-500 px-2">
-                              Supports .txt, .html, .docx, .pdf files up to 25MB
+                              Supports .txt, .html, .docx files up to 25MB
                             </p>
                           </div>
                         )}
@@ -385,7 +397,7 @@ export default function EulaAnalyzer() {
                       <input
                         ref={fileInputRef}
                         type="file"
-                        accept=".txt,.html,.docx,.doc,.pdf"
+                        accept=".txt,.html,.docx,.doc"
                         onChange={handleFileInputChange}
                         className="hidden"
                       />

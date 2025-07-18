@@ -1,91 +1,76 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-// Simple PDF text extraction without external libraries
-function extractTextFromPDFBuffer(buffer: Buffer): string {
+// Try pdf-text-reader first, fallback to basic extraction
+async function extractTextFromPDF(buffer: Buffer): Promise<string> {
   try {
-    console.log('Starting basic PDF text extraction...');
+    // Try using pdf-text-reader library first
+    const PdfReader = (await import('pdf-text-reader')).default;
+    const reader = new PdfReader();
+    const pages = await reader.read(buffer);
     
-    // Convert buffer to latin1 string to preserve binary data
+    let extractedText = '';
+    for (let page of pages) {
+      extractedText += page + '\n';
+    }
+    
+    return extractedText.trim();
+  } catch (error) {
+    console.log('pdf-text-reader failed, falling back to basic extraction:', error);
+    
+    // Fallback to basic text extraction
+    return extractBasicTextFromPDF(buffer);
+  }
+}
+
+// Basic fallback text extraction
+function extractBasicTextFromPDF(buffer: Buffer): string {
+  try {
     const pdfContent = buffer.toString('latin1');
     
-    // Check if it's a valid PDF
     if (!pdfContent.startsWith('%PDF-')) {
       throw new Error('Invalid PDF format');
     }
     
-    console.log('Valid PDF detected, extracting text...');
-    
-    // Extract text using multiple patterns
-    const textPatterns = [
-      // Text in parentheses: (text content)
-      /\(([^)]+)\)/g,
-      // Text in square brackets: [text content]
-      /\[([^\]]+)\]/g,
-      // Text after BT (Begin Text) commands
-      /BT\s*([^ET]*?)\s*ET/gs,
-      // Text in angle brackets: <text content>
-      /<([^>]+)>/g
-    ];
-    
+    // Look for simple text patterns - focus on readable content only
     let extractedText = '';
     
-    // Try each pattern
-    for (const pattern of textPatterns) {
-      const matches = pdfContent.match(pattern);
-      if (matches) {
-        const patternText = matches
-          .map(match => {
-            // Clean up the match
-            let cleaned = match.replace(/^\(|\)$|^\[|\]$|^<|>$/g, '');
-            // Remove PDF control characters
-            cleaned = cleaned.replace(/\\[nrtb]/g, ' ');
-            // Remove escape sequences
-            cleaned = cleaned.replace(/\\[0-9]{3}/g, '');
-            // Remove other escape sequences
-            cleaned = cleaned.replace(/\\./g, '');
-            return cleaned;
-          })
-          .filter(text => {
-            // Filter out very short strings and PDF commands
-            return text.length > 2 && 
-                   !text.match(/^[0-9\s.]*$/) && // Not just numbers/spaces
-                   !text.match(/^[A-Z]{1,3}$/) && // Not short uppercase commands
-                   text.includes(' ') || text.length > 10; // Either has spaces or is long
-          })
-          .join(' ');
-        
-        if (patternText.length > extractedText.length) {
-          extractedText = patternText;
-        }
+    // Extract text in parentheses (most common readable text format)
+    const parenthesesPattern = /\(([^)]{10,})\)/g;
+    let match;
+    while ((match = parenthesesPattern.exec(pdfContent)) !== null) {
+      const text = match[1]
+        .replace(/\\[nrtbf]/g, ' ')
+        .replace(/\\[0-9]{3}/g, '')
+        .replace(/\\./g, '')
+        .trim();
+      
+      // Only include text that looks like real sentences
+      if (text.length > 10 && /[a-zA-Z].*[a-zA-Z]/.test(text) && text.includes(' ')) {
+        extractedText += text + ' ';
       }
     }
     
-    console.log('Raw extracted text length:', extractedText.length);
-    
-    if (extractedText.length === 0) {
-      // Try a more aggressive approach for simple PDFs
-      const simpleTextMatches = pdfContent.match(/[a-zA-Z\s]{10,}/g);
-      if (simpleTextMatches) {
-        extractedText = simpleTextMatches
-          .filter(text => text.trim().length > 10)
-          .join(' ');
+    // If we didn't get much text, try a broader approach
+    if (extractedText.length < 100) {
+      // Look for sequences of readable words
+      const wordPattern = /\b[A-Z][a-z]+(?:\s+[a-zA-Z]+){3,}\b/g;
+      const sentences = pdfContent.match(wordPattern);
+      if (sentences) {
+        extractedText += sentences.join(' ') + ' ';
       }
     }
     
-    // Clean up the extracted text
-    const cleanedText = extractedText
-      .replace(/\s+/g, ' ') // Multiple spaces to single space
-      .replace(/\n\s*\n/g, '\n') // Remove empty lines
+    // Clean up the text
+    extractedText = extractedText
+      .replace(/\s+/g, ' ')
+      .replace(/[^\w\s.,;:!?'"()\-]/g, ' ')
+      .replace(/\s+/g, ' ')
       .trim();
     
-    console.log('Final cleaned text length:', cleanedText.length);
-    console.log('First 200 chars:', cleanedText.substring(0, 200));
-    
-    return cleanedText;
-    
+    return extractedText;
   } catch (error) {
-    console.error('PDF text extraction error:', error);
-    throw error;
+    console.error('Basic PDF extraction error:', error);
+    throw new Error('Could not extract text from PDF');
   }
 }
 
@@ -131,8 +116,8 @@ export async function POST(request: NextRequest) {
 
     console.log('Buffer created, size:', buffer.length);
 
-    // Extract text using our custom function
-    const extractedText = extractTextFromPDFBuffer(buffer);
+    // Extract text using hybrid approach
+    const extractedText = await extractTextFromPDF(buffer);
 
     if (!extractedText || extractedText.trim().length < 10) {
       return NextResponse.json(
@@ -142,12 +127,13 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('Successfully extracted text from PDF');
+    console.log('Text length:', extractedText.length);
 
     return NextResponse.json({
       text: extractedText,
       pages: 'unknown',
       info: { 
-        method: 'regex-extraction',
+        method: 'hybrid-pdf-reader',
         originalLength: buffer.length,
         extractedLength: extractedText.length
       }
