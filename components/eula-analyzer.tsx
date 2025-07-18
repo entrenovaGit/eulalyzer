@@ -438,7 +438,7 @@ export default function EulaAnalyzer() {
                 <AlertDescription className="text-red-200">{error}</AlertDescription>
               </Alert>
             ) : result ? (
-              <div className="flex-1 space-y-4 overflow-y-auto max-h-[70vh] lg:max-h-none">
+              <div className="flex-1 space-y-4 overflow-y-auto pb-4 sm:pb-6">
                 {/* Risk Score */}
                 <Card className="bg-gray-900 border-purple-800/30">
                   <CardHeader className="pb-3">
