@@ -18,29 +18,27 @@ interface AnalysisResult {
 
 const extractTextFromPdf = async (file: File): Promise<string> => {
   try {
-    const pdfParse = await import('pdf-parse');
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    
     console.log('PDF file size:', file.size, 'bytes');
-    console.log('Extracting text using pdf-parse library...');
+    console.log('Sending PDF to server for parsing...');
     
-    const data = await pdfParse.default(buffer);
+    const formData = new FormData();
+    formData.append('file', file);
     
-    console.log('PDF parsed successfully, pages:', data.numpages);
-    console.log('Extracted text length:', data.text.length);
+    const response = await fetch('/api/parse-pdf', {
+      method: 'POST',
+      body: formData,
+    });
     
-    if (!data.text || data.text.trim().length === 0) {
-      throw new Error('No readable text found in PDF. The PDF might be image-based, scanned, or encrypted.');
+    const data = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to parse PDF');
     }
     
-    // Clean up the extracted text
-    const cleanedText = data.text
-      .replace(/\s+/g, ' ') // Replace multiple spaces with single space
-      .replace(/\n\s*\n/g, '\n') // Remove empty lines
-      .trim();
+    console.log('PDF parsed successfully on server, pages:', data.pages);
+    console.log('Extracted text length:', data.text.length);
     
-    return cleanedText;
+    return data.text;
   } catch (error) {
     console.error('PDF extraction error:', error);
     if (error instanceof Error) {
