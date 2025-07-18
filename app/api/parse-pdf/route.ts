@@ -1,8 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import pdfParse from 'pdf-parse';
+
+// Add debug logging
+console.log('API route loaded');
+
+export async function GET() {
+  return NextResponse.json({ message: 'PDF parse API endpoint is working' });
+}
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('POST request received');
+    
     const formData = await request.formData();
     const file = formData.get('file') as File;
     
@@ -35,8 +43,11 @@ export async function POST(request: NextRequest) {
 
     console.log('Processing PDF file:', file.name, 'Size:', file.size, 'bytes');
 
+    // Dynamically import pdf-parse to avoid loading issues
+    const pdfParse = await import('pdf-parse');
+    
     // Parse PDF
-    const data = await pdfParse(buffer);
+    const data = await pdfParse.default(buffer);
 
     console.log('PDF parsed successfully, pages:', data.numpages);
     console.log('Extracted text length:', data.text.length);
