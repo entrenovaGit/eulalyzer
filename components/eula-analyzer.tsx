@@ -96,22 +96,48 @@ export default function EulaAnalyzer() {
     return result.value;
   };
 
+  const extractTextFromPdf = async (file: File): Promise<string> => {
+    const pdfjsLib = await import('pdfjs-dist');
+    
+    // Set the worker source
+    pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+    
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
+    
+    let fullText = '';
+    
+    // Extract text from each page
+    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+      const page = await pdf.getPage(pageNum);
+      const textContent = await page.getTextContent();
+      const pageText = textContent.items
+        .map((item: { str: string }) => item.str)
+        .join(' ');
+      fullText += pageText + '\n';
+    }
+    
+    return fullText.trim();
+  };
+
 
   const handleFileSelect = useCallback(async (file: File) => {
     const allowedTypes = [
       'text/plain',
       'text/html',
       'application/msword',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/pdf'
     ];
 
     const fileName = file.name.toLowerCase();
     const isAllowedType = allowedTypes.includes(file.type) || 
                          fileName.endsWith('.txt') || 
-                         fileName.endsWith('.docx');
+                         fileName.endsWith('.docx') ||
+                         fileName.endsWith('.pdf');
 
     if (!isAllowedType) {
-      toast.error("Please upload a supported file (.txt, .html, .docx)");
+      toast.error("Please upload a supported file (.txt, .html, .docx, .pdf)");
       return;
     }
 
@@ -129,6 +155,8 @@ export default function EulaAnalyzer() {
         content = await readFileContent(file);
       } else if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || fileName.endsWith('.docx')) {
         content = await extractTextFromDocx(file);
+      } else if (file.type === 'application/pdf' || fileName.endsWith('.pdf')) {
+        content = await extractTextFromPdf(file);
       } else if (file.type === 'application/msword') {
         toast.error("Legacy .doc files are not supported. Please save as .docx format.");
         return;
@@ -335,7 +363,7 @@ export default function EulaAnalyzer() {
                               </p>
                             </div>
                             <p className="text-xs text-gray-500 px-2">
-                              Supports .txt, .html, .docx files up to 25MB
+                              Supports .txt, .html, .docx, .pdf files up to 25MB
                             </p>
                           </div>
                         )}
@@ -345,7 +373,7 @@ export default function EulaAnalyzer() {
                       <input
                         ref={fileInputRef}
                         type="file"
-                        accept=".txt,.html,.docx,.doc"
+                        accept=".txt,.html,.docx,.doc,.pdf"
                         onChange={handleFileInputChange}
                         className="hidden"
                       />
